@@ -30,7 +30,8 @@ export default class App extends React.Component {
         loanEndDate: "",
         monthPurchased: "Sept",
         yearPurchased: 2019,
-        numOfExtraPayments: 0
+        numOfExtraPayments: 0,
+        monthlyPayment: 0
       }],
       selectedCarId: 1
     }
@@ -66,6 +67,7 @@ export default class App extends React.Component {
   getCar = (id) => this.state.cars.find(car => car.id === id);
 
   getCarLoanEndDate(id) {
+    const { cars } = this.state;
     const car = this.getCar(id);
 
     let currentMonthIndex = months.findIndex(m => m === car.monthPurchased);
@@ -86,9 +88,18 @@ export default class App extends React.Component {
       const principalPaid = monthlyPayment - interestPaid;
       principalAmount -= principalPaid + extraPayments;
       currentMonthIndex++;
-      if(monthIndex === 11) year++;
+      if(monthIndex === 11 && principalAmount > 0) year++;
       numPayments++;
     }
+
+    const otherCars = cars.filter(car => car.id !== id);
+
+    car.monthlyPayment = monthlyPayment;
+
+    this.setState({
+      cars: otherCars.concat(car).sort((a,b) => a.id - b.id)
+    });
+
     return [months[monthIndex], year]
   }
 
@@ -116,7 +127,8 @@ export default class App extends React.Component {
       monthPurchased: "",
       loanEndDate: "",
       yearPurchased: 2019,
-      numOfExtraPayments: 0
+      numOfExtraPayments: 0,
+      monthlyPayment: 0
     }
 
     this.setState(prevState => ({
@@ -132,6 +144,43 @@ export default class App extends React.Component {
 
     let car = this.getCar(id);
     car.loanEndDate = this.getCarLoanEndDate(id);
+
+    this.setState({
+      cars: otherCars.concat(car).sort((a,b) => a.id - b.id),
+      selectedCarId: car.id,
+    });
+  }
+
+  handleRefinanceCarLoan = (id) => {
+    const { cars } = this.state;
+    const car = this.getCar(id);
+
+    let currentMonthIndex = months.findIndex(m => m === car.monthPurchased);
+    let year = car.yearPurchased;
+    const interestRate = car.interestRate / 100;
+    let principalAmount = parseInt(car.cost);
+    const monthlyPayment = Math.round(-this.PMT(interestRate/12, 60, principalAmount));
+
+    let monthIndex = currentMonthIndex % 12;
+    const extraPayments = parseInt(car.extraPayment);
+    let numOfExtraPayments = parseInt(car.numOfExtraPayments);
+    while(numOfExtraPayments > 0) {
+      monthIndex = currentMonthIndex % 12;
+      const interestPaid = Math.round(principalAmount * interestRate/12);
+      const principalPaid = monthlyPayment - interestPaid;
+      principalAmount -= principalPaid + extraPayments;
+      currentMonthIndex++;
+      if(monthIndex === 11 && principalAmount > 0) year++;
+      numOfExtraPayments--;
+    }
+
+    const otherCars = cars.filter(car => car.id !== id);
+
+    car.yearPurchased = year;
+    car.monthPurchased = months[monthIndex];
+    car.cost = principalAmount;
+    car.extraPayment = 0;
+    car.numOfExtraPayments = 0;
 
     this.setState({
       cars: otherCars.concat(car).sort((a,b) => a.id - b.id),
@@ -166,12 +215,14 @@ export default class App extends React.Component {
             </select>
         </td>
         <td><textarea value={car.yearPurchased} name="yearPurchased" onChange={(e) => this.handleCarValueChange(car.id, e)} /></td>
+        <td>{car.monthlyPayment}</td>
         <td><textarea value={car.extraPayment} name="extraPayment" onChange={(e) => this.handleCarValueChange(car.id, e)} /></td>
         <td><textarea value={car.numOfExtraPayments} name="numOfExtraPayments" onChange={(e) => this.handleCarValueChange(car.id, e)} /></td>
         <td>
           <div>
             {car.loanEndDate}
           <button className="pl-1" onClick={() => this.handleCalculateCarLoanEndDate(car.id)}>Calculate Loan</button>
+          <button className="pl-1" onClick={() => this.handleRefinanceCarLoan(car.id)}>Refinance Loan</button>
           </div>
         </td>
       </tr>
@@ -181,25 +232,42 @@ export default class App extends React.Component {
   }
 
   render() {
-    const { selectedCarId } = this.state;
+    const { selectedCarId, cars } = this.state;
     const selectedCar = this.getCar(selectedCarId);
 
     return (
       <div className="App">
-        <Table className="table">
-          <thead>
-            <tr>
-              <th>Cost</th>
-              <th>Interest Rate</th>
-              <th>Month Purchased</th>
-              <th>Year Purchased</th>
-              <th>Extra Payment</th>
-              <th># Extra Payments</th>
-              <th>Car Loan End Date</th>
-            </tr>
-          </thead>
-        <tbody>{this.renderCars()}</tbody>
-        </Table>
+        <div className="d-inline-flex">
+          <Table className="table">
+            <thead>
+              <tr>
+                <th>Cost</th>
+                <th>Interest Rate</th>
+                <th>Month Purchased</th>
+                <th>Year Purchased</th>
+                <th>Monthly Payment</th>
+                <th>Extra Payment</th>
+                <th># Extra Payments</th>
+                <th>Car Loan End Date</th>
+              </tr>
+            </thead>
+          <tbody>{this.renderCars()}</tbody>
+          </Table>
+          <Table className="getaround-summary">
+            <thead>
+              <tr>
+                <th>Number of Cars</th>
+                <th>Profit</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <th>{cars.length}</th>
+                <th>{cars.length * 200}</th>
+              </tr>
+            </tbody>
+          </Table>
+        </div>
         <button className="primary" onClick={this.addNewCar}>Add new Car</button>
         {selectedCarId && <CarLoanCalculator car={selectedCar} /> }
       </div>
