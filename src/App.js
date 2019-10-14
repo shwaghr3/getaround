@@ -18,20 +18,27 @@ const months = [
   "Dec"
 ];
 
+const initialCar = {
+  cost: 12000,
+  extraPayment: 0,
+  interestRate: 3.25,
+  loanEndDate: "",
+  monthPurchased: "Sept",
+  yearPurchased: 2019,
+  numOfExtraPayments: 0,
+  monthlyPayment: 0,
+  refinancedDate: "",
+  refinancedAmount: 0,
+  refinancedMonthlyPayment: 0
+};
+
 export default class App extends React.Component {
   constructor(props) {
     super(props);
     this.state = {
       cars: [{
         id: 1,
-        cost: 12000,
-        extraPayment: 0,
-        interestRate: 3.25,
-        loanEndDate: "",
-        monthPurchased: "Sept",
-        yearPurchased: 2019,
-        numOfExtraPayments: 0,
-        monthlyPayment: 0
+        ...initialCar
       }],
       selectedCarId: 1
     }
@@ -74,18 +81,29 @@ export default class App extends React.Component {
     let year = car.yearPurchased;
     const interestRate = car.interestRate / 100;
     let principalAmount = parseInt(car.cost);
-    const monthlyPayment = Math.round(-this.PMT(interestRate/12, 60, principalAmount));
 
-    let monthIndex = 0;
+    let originalMonthlyPayment = Math.round(-this.PMT(interestRate/12, 60, principalAmount));
+    let refinancedMonthlyPayment = 0;
+
+    let monthIndex = currentMonthIndex % 12;
     let numPayments = 0;
     let extraPayments = parseInt(car.extraPayment);
+    if ( parseInt(car.numOfExtraPayments) === 0) car.monthlyPayment = originalMonthlyPayment;
+
     while(principalAmount > 0) {
-      if (numPayments >= parseInt(car.numOfExtraPayments)) {
-        extraPayments = 0;
-      }
       monthIndex = currentMonthIndex % 12;
+      if (numPayments >= parseInt(car.numOfExtraPayments) && originalMonthlyPayment !== 0 && parseInt(car.numOfExtraPayments) !== 0) {
+        extraPayments = 0;
+        car.refinancedDate = [months[monthIndex], year].join(" ");
+        car.refinancedAmount = principalAmount;
+        refinancedMonthlyPayment = Math.round(-this.PMT(interestRate/12, 60, principalAmount));
+        car.refinancedMonthlyPayment = refinancedMonthlyPayment
+        car.monthlyPayment = originalMonthlyPayment;
+        originalMonthlyPayment = 0;
+      }
+
       const interestPaid = Math.round(principalAmount * interestRate/12);
-      const principalPaid = monthlyPayment - interestPaid;
+      const principalPaid = (originalMonthlyPayment + refinancedMonthlyPayment) - interestPaid;
       principalAmount -= principalPaid + extraPayments;
       currentMonthIndex++;
       if(monthIndex === 11 && principalAmount > 0) year++;
@@ -93,9 +111,6 @@ export default class App extends React.Component {
     }
 
     const otherCars = cars.filter(car => car.id !== id);
-
-    car.monthlyPayment = monthlyPayment;
-
     this.setState({
       cars: otherCars.concat(car).sort((a,b) => a.id - b.id)
     });
@@ -119,16 +134,18 @@ export default class App extends React.Component {
 
   addNewCar = () => {
     const { cars } = this.state;
+    const lastCar = cars[cars.length - 1];
+
     const newCar = {
       id: cars[cars.length -1].id +1,
-      extraPayment: 0,
-      interestRate: 0,
-      cost: 0,
-      monthPurchased: "",
-      loanEndDate: "",
-      yearPurchased: 2019,
-      numOfExtraPayments: 0,
-      monthlyPayment: 0
+      ...initialCar
+    }
+
+    let refinancedDate = lastCar.refinancedDate.split(" ");
+
+    if(refinancedDate.length === 2) {
+      newCar.monthPurchased = refinancedDate[0];
+      newCar.yearPurchased = refinancedDate[1];
     }
 
     this.setState(prevState => ({
@@ -144,43 +161,6 @@ export default class App extends React.Component {
 
     let car = this.getCar(id);
     car.loanEndDate = this.getCarLoanEndDate(id);
-
-    this.setState({
-      cars: otherCars.concat(car).sort((a,b) => a.id - b.id),
-      selectedCarId: car.id,
-    });
-  }
-
-  handleRefinanceCarLoan = (id) => {
-    const { cars } = this.state;
-    const car = this.getCar(id);
-
-    let currentMonthIndex = months.findIndex(m => m === car.monthPurchased);
-    let year = car.yearPurchased;
-    const interestRate = car.interestRate / 100;
-    let principalAmount = parseInt(car.cost);
-    const monthlyPayment = Math.round(-this.PMT(interestRate/12, 60, principalAmount));
-
-    let monthIndex = currentMonthIndex % 12;
-    const extraPayments = parseInt(car.extraPayment);
-    let numOfExtraPayments = parseInt(car.numOfExtraPayments);
-    while(numOfExtraPayments > 0) {
-      monthIndex = currentMonthIndex % 12;
-      const interestPaid = Math.round(principalAmount * interestRate/12);
-      const principalPaid = monthlyPayment - interestPaid;
-      principalAmount -= principalPaid + extraPayments;
-      currentMonthIndex++;
-      if(monthIndex === 11 && principalAmount > 0) year++;
-      numOfExtraPayments--;
-    }
-
-    const otherCars = cars.filter(car => car.id !== id);
-
-    car.yearPurchased = year;
-    car.monthPurchased = months[monthIndex];
-    car.cost = principalAmount;
-    car.extraPayment = 0;
-    car.numOfExtraPayments = 0;
 
     this.setState({
       cars: otherCars.concat(car).sort((a,b) => a.id - b.id),
@@ -218,11 +198,13 @@ export default class App extends React.Component {
         <td>{car.monthlyPayment}</td>
         <td><textarea value={car.extraPayment} name="extraPayment" onChange={(e) => this.handleCarValueChange(car.id, e)} /></td>
         <td><textarea value={car.numOfExtraPayments} name="numOfExtraPayments" onChange={(e) => this.handleCarValueChange(car.id, e)} /></td>
+        <td>{car.refinancedDate}</td>
+        <td>{car.refinancedMonthlyPayment}</td>
+        <td>{car.refinancedAmount}</td>
         <td>
           <div>
             {car.loanEndDate}
           <button className="pl-1" onClick={() => this.handleCalculateCarLoanEndDate(car.id)}>Calculate Loan</button>
-          <button className="pl-1" onClick={() => this.handleRefinanceCarLoan(car.id)}>Refinance Loan</button>
           </div>
         </td>
       </tr>
@@ -248,6 +230,9 @@ export default class App extends React.Component {
                 <th>Monthly Payment</th>
                 <th>Extra Payment</th>
                 <th># Extra Payments</th>
+                <th>Refinanced Date</th>
+                <th>Refinanced Payment</th>
+                <th>Refinanced Amount</th>
                 <th>Car Loan End Date</th>
               </tr>
             </thead>
