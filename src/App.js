@@ -40,7 +40,8 @@ export default class App extends React.Component {
         id: 1,
         ...initialCar
       }],
-      selectedCarId: 1
+      selectedCarId: 1,
+      profitPerCar: 200
     }
   }
 
@@ -133,12 +134,18 @@ export default class App extends React.Component {
   };
 
   addNewCar = () => {
-    const { cars } = this.state;
+    const { cars, profitPerCar } = this.state;
+    const totalProfit = profitPerCar * cars.length;
+
     const lastCar = cars[cars.length - 1];
+
+    let totalPayments = 0;
+    cars.forEach(car => totalPayments += car.refinancedMonthlyPayment);
 
     const newCar = {
       id: cars[cars.length -1].id +1,
-      ...initialCar
+      ...initialCar,
+      extraPayment: totalProfit - totalPayments
     }
 
     let refinancedDate = lastCar.refinancedDate.split(" ");
@@ -214,7 +221,7 @@ export default class App extends React.Component {
   }
 
   render() {
-    const { selectedCarId, cars } = this.state;
+    const { selectedCarId, cars, profitPerCar } = this.state;
     const selectedCar = this.getCar(selectedCarId);
 
     return (
@@ -243,12 +250,14 @@ export default class App extends React.Component {
               <tr>
                 <th>Number of Cars</th>
                 <th>Profit</th>
+                <th>Total Profit</th>
               </tr>
             </thead>
             <tbody>
               <tr>
                 <th>{cars.length}</th>
-                <th>{cars.length * 200}</th>
+                <td><textarea value={profitPerCar} name="numOfExtraPayments" onChange={(e) => this.setState({ profitPerCar: parseInt(e.target.value || 0)}) }/></td>
+                <th>{cars.length * (profitPerCar || 0)}</th>
               </tr>
             </tbody>
           </Table>
